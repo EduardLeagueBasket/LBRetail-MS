@@ -1,0 +1,156 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ─── PRODUCTO ───────────────────────────────────────────
+
+model Producto {
+  id                   String        @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // 👇 Aquí está la clave
+  teamId             String        //@db.ObjectId
+  teamType           TeamType    // LIGA | NACIONAL
+  
+  nombre               String
+  slug                 String        @unique
+  categoria            Categoria
+  descripcion          String?
+  marca                String?
+  imagenes             Imagen[]
+  variantes            Variante[]
+  atributosDisponibles String[]
+  descuento            Descuento?
+  precioOriginal       Float?
+  tags                 String[]
+  activo               Boolean       @default(true)
+  creadoPorId          String?       //@db.ObjectId
+  creadoEn             DateTime      @default(now())
+  actualizadoEn        DateTime      @updatedAt
+
+  carritoItems         CarritoItem[]
+
+  @@index([teamId])
+  @@index([teamId, activo])
+  @@index([creadoPorId])
+}
+
+type Imagen {
+  url       String
+  principal Boolean @default(false)
+}
+
+type Variante {
+  sku       String
+  atributos Json
+  precio    Float
+  stock     Int
+  activo    Boolean @default(true)
+}
+
+type Descuento {
+  porcentaje Int
+  activo     Boolean @default(true)
+}
+
+enum Categoria {
+  jersey
+  short
+  medias
+  llavero
+  gorra
+  bandana
+  taza
+  vaso
+  balon
+  sudadera
+  bandera
+  poster
+  otro
+}
+
+enum TeamType {
+  LIGA
+  NACIONAL
+}
+
+// ─── CARRITO ────────────────────────────────────────────
+
+model Carrito {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  usuarioId     String?       //@db.ObjectId
+  sessionId     String
+  teamId      String        //@db.ObjectId   // 👈 el carrito también es por equipo
+  teamType    TeamType
+  items         CarritoItem[]
+  total         Float         @default(0)
+  updatedAt     DateTime      @updatedAt
+
+  @@index([sessionId, teamId])
+}
+
+model CarritoItem {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  carritoId   String     @db.ObjectId
+  carrito     Carrito    @relation(fields: [carritoId], references: [id])
+  productoId  String     @db.ObjectId
+  producto    Producto   @relation(fields: [productoId], references: [id])
+  varianteSku String
+  nombre      String
+  imagen      String
+  atributos   Json
+  precio      Float
+  cantidad    Int
+}
+
+// ─── PEDIDO (compra) ────────────────────────────────────
+
+model Pedido {
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  numero        String       @unique
+  usuarioId     String       @db.ObjectId
+  teamId        String       @db.ObjectId
+  teamType      TeamType
+  items         PedidoItem[]
+  subtotal      Float
+  descuento     Float        @default(0)
+  total         Float
+  estado        EstadoPedido @default(PENDIENTE)
+  creadoEn      DateTime     @default(now())
+  actualizadoEn DateTime     @updatedAt
+
+  @@index([usuarioId])
+  @@index([teamId, teamType])
+  @@index([estado])
+  @@index([creadoEn])
+}
+
+model PedidoItem {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  pedidoId    String  @db.ObjectId
+  pedido      Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  productoId  String  @db.ObjectId
+  varianteSku String
+  nombre      String
+  imagen      String?
+  atributos   Json
+  precio      Float
+  cantidad    Int
+}
+
+enum EstadoPedido {
+  PENDIENTE
+  PAGADO
+  ENVIADO
+  ENTREGADO
+  CANCELADO
+}
